@@ -1,0 +1,150 @@
+/* frontend/src/App.css */
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    background-color: #f4f7f6;
+    color: #333;
+    margin: 0;
+    padding: 20px;
+}
+
+.App {
+    max-width: 800px;
+    margin: 0 auto;
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    padding: 20px 40px;
+}
+
+.App-header {
+    text-align: center;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 20px;
+    margin-bottom: 30px;
+}
+
+.App-header h1 {
+    color: #2c3e50;
+    margin: 0;
+}
+
+form {
+    display: flex;
+    flex-direction: column;
+}
+
+textarea {
+    width: 100%;
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid #ddd;
+    font-size: 16px;
+    margin-bottom: 20px;
+    resize: vertical;
+}
+
+button {
+    padding: 15px 20px;
+    border: none;
+    background-color: #3498db;
+    color: white;
+    font-size: 16px;
+    font-weight: bold;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+button:hover {
+    background-color: #2980b9;
+}
+
+button:disabled {
+    background-color: #bdc3c7;
+    cursor: not-allowed;
+}
+
+.results {
+    margin-top: 40px;
+}
+
+.verdict {
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    font-size: 20px;
+    text-align: center;
+}
+
+.verdict.real {
+    background-color: #e8f5e9; /* Light Green */
+    color: #2e7d32;
+    border: 1px solid #a5d6a7;
+}
+
+.verdict.fake {
+    background-color: #ffebee; /* Light Red */
+    color: #c62828;
+    border: 1px solid #ef9a9a;
+}
+
+.verdict.unverified {
+    background-color: #fffde7; /* Light Yellow */
+    color: #f57f17;
+    border: 1px solid #fff59d;
+}
+
+.score {
+    text-align: center;
+    font-size: 18px;
+    margin-bottom: 20px;
+}
+
+.explanation, .sources {
+    margin-top: 30px;
+}
+
+h3 {
+    border-bottom: 2px solid #3498db;
+    padding-bottom: 5px;
+    margin-bottom: 15px;
+}
+
+.sources ul {
+    list-style-type: none;
+    padding: 0;
+}
+
+.sources li {
+    background-color: #f9f9f9;
+    border: 1px solid #eee;
+    padding: 15px;
+    border-radius: 5px;
+    margin-bottom: 10px;
+}
+
+.sources a {
+    text-decoration: none;
+    color: #2980b9;
+    font-weight: bold;
+}
+
+.sources p {
+    margin: 5px 0;
+    color: #555;
+}
+
+.sources small {
+    color: #777;
+    font-style: italic;
+}
+
+.error-message {
+    color: #c0392b;
+    background-color: #fbeae5;
+    border: 1px solid #e74c3c;
+    padding: 15px;
+    border-radius: 8px;
+    margin-top: 20px;
+    text-align: center;
+}
