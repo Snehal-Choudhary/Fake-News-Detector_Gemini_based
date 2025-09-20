@@ -18,7 +18,8 @@ function App() {
         const payload = isUrl ? { url: input } : { text: input };
 
         try {
-            const response = await fetch('http://localhost:8000/analyze', {
+            const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:8000/analyze';
+            const response = await fetch(apiUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
