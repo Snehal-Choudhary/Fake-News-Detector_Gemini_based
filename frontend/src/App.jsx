@@ -7,10 +7,10 @@ function App() {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
 
-    // Use Vite's `import.meta.env` to access environment variables.
-    // This allows the app to use the live URL on Netlify and a fallback for local testing.
-    // The variable on Netlify MUST be named VITE_API_URL.
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/analyze';
+    // Get the BASE URL from the environment variable.
+    const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    // Append the correct endpoint path to the base URL.
+    const apiUrl = `${apiBaseUrl}/analyze`;
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -24,13 +24,11 @@ function App() {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                // The backend is smart enough to detect URLs, so we always send a 'text' payload.
                 body: JSON.stringify({ text: input }),
             });
 
             if (!response.ok) {
-                // Try to get a detailed error message from the backend, otherwise show a generic one.
-                const errData = await response.json().catch(() => ({ detail: 'An unknown error occurred.' }));
+                const errData = await response.json().catch(() => ({ detail: 'An unknown server error occurred.' }));
                 throw new Error(errData.detail || 'An error occurred during analysis.');
             }
 
@@ -86,7 +84,6 @@ function App() {
                             <p>{result.explanation}</p>
                         </div>
                         
-                        {/* Defensive check to prevent crash if supporting_sources is missing or not an array */}
                         {Array.isArray(result.supporting_sources) && result.supporting_sources.length > 0 && (
                             <div className="sources">
                                 <h3>Supporting Sources</h3>
