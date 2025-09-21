@@ -7,10 +7,8 @@ function App() {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
 
-    // Get the BASE URL from the environment variable.
-    const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-    // Append the correct endpoint path to the base URL.
-    const apiUrl = `${apiBaseUrl}/analyze`;
+    // This uses the live URL when deployed and falls back to the local one for development.
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/analyze';
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -21,9 +19,7 @@ function App() {
         try {
             const response = await fetch(apiUrl, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ text: input }),
             });
 
@@ -51,7 +47,8 @@ function App() {
     return (
         <div className="App">
             <header className="App-header">
-                <h1>FactScope</h1>
+                {/* Updated Title */}
+                <h1>Fake News Detector</h1>
                 <p>Enter a news claim or article URL to analyze its credibility.</p>
             </header>
             <main>
@@ -67,6 +64,11 @@ function App() {
                         {isLoading ? 'Analyzing...' : 'Analyze'}
                     </button>
                 </form>
+
+                {/* Added Informational Note */}
+                <p className="info-note">
+                  Note: The first analysis may take up to 60 seconds as the free-tier server wakes up. Subsequent requests will be much faster!
+                </p>
 
                 {error && <div className="error-message">{error}</div>}
 
