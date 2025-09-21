@@ -7,12 +7,10 @@ function App() {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
 
-    // --- THIS IS THE FIX ---
     // Use Vite's `import.meta.env` to access environment variables.
-    // The variable on Netlify must be named VITE_API_URL.
-    // It falls back to the local server URL for development.
+    // This allows the app to use the live URL on Netlify and a fallback for local testing.
+    // The variable on Netlify MUST be named VITE_API_URL.
     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/analyze';
-    // --- END OF FIX ---
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -31,7 +29,8 @@ function App() {
             });
 
             if (!response.ok) {
-                const errData = await response.json();
+                // Try to get a detailed error message from the backend, otherwise show a generic one.
+                const errData = await response.json().catch(() => ({ detail: 'An unknown error occurred.' }));
                 throw new Error(errData.detail || 'An error occurred during analysis.');
             }
 
@@ -64,6 +63,7 @@ function App() {
                         onChange={(e) => setInput(e.target.value)}
                         placeholder="Paste your text or URL here..."
                         rows="5"
+                        aria-label="News claim input"
                     />
                     <button type="submit" disabled={isLoading || !input}>
                         {isLoading ? 'Analyzing...' : 'Analyze'}
@@ -86,7 +86,7 @@ function App() {
                             <p>{result.explanation}</p>
                         </div>
                         
-                        {/* Defensive check to prevent crash if supporting_sources is missing */}
+                        {/* Defensive check to prevent crash if supporting_sources is missing or not an array */}
                         {Array.isArray(result.supporting_sources) && result.supporting_sources.length > 0 && (
                             <div className="sources">
                                 <h3>Supporting Sources</h3>
