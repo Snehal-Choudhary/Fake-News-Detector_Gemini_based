@@ -1,92 +1,88 @@
 # backend/main.py
-from fastapi import FastAPI, HTTPException
+
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
 import scraper
 import llm_utils
 import factcheck_api
 import search_api
 import scoring
+import re
 
-# --- Pydantic Models ---
-class Request(BaseModel):
-    text: str = None
-    url: str = None
+app = FastAPI()
 
-class Response(BaseModel):
-    verdict: str
-    confidence_score: float
-    explanation: str
-    sources: list
+# --- CORS Configuration ---
+# This list must include the URL of your live Netlify site.
+origins = [
+    "http://localhost:3000",
+    "http://localhost:5173",  # Default Vite port
+    "https://fact-scope.netlify.app" # IMPORTANT: Replace with your actual Netlify URL
+]
 
-# --- FastAPI App ---
-app = FastAPI(
-    title="Fake News Detection API",
-    description="An API to analyze text or URLs for potential misinformation.",
-    version="1.0.0"
-)
-
-# --- CORS Middleware ---
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins
+    allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],  # Allows all methods
-    allow_headers=["*"],  # Allows all headers
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-@app.post("/analyze", response_model=Response)
+def is_url(string):
+    """A simple regex check to see if a string is a URL."""
+    regex = re.compile(
+        r'^(?:http|ftp)s?://'
+        r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}\.?)|'
+        r'localhost|'
+        r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})'
+        r'(?::\d+)?'
+        r'(?:/?|[/?]\S+)$', re.IGNORECASE)
+    return re.match(regex, string) is not None
+
+@app.post("/analyze")
 async def analyze_text(request: Request):
     """
-    Analyzes a piece of text or a URL to detect fake news.
+    Main endpoint to analyze text. It detects if the text is a URL.
     """
-    if not request.text and not request.url:
-        raise HTTPException(status_code=400, detail="Please provide either 'text' or a 'url'.")
+    data = await request.json()
+    input_data = data.get('text', '').strip()
+    original_claim = input_data
+    
+    # --- Step 1: Scrape content if the input is a URL ---
+    if is_url(input_data):
+        scraped_text = scraper.scrape_article_content(input_data)
+        # Use the original URL as the claim if scraping returns very little text
+        if len(scraped_text) < len(original_claim) * 0.8:
+            input_text_for_analysis = original_claim
+        else:
+            input_text_for_analysis = scraped_text
+    else:
+        input_text_for_analysis = original_claim
 
-    input_text = request.text
-    if request.url:
-        try:
-            input_text = scraper.scrape_article_content(request.url)
-            if not input_text:
-                 raise HTTPException(status_code=500, detail="Could not scrape content from the URL.")
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to scrape URL: {e}")
+    # --- Step 2: The Critical Guardrail ---
+    # Check if we have any usable text to analyze.
+    if not input_text_for_analysis or "Scraping failed" in input_text_for_analysis:
+        return {
+            "verdict": "Unverified",
+            "confidence_score": 0.0,
+            "explanation": f"Could not analyze the claim. Scraper message: '{input_text_for_analysis}'",
+            "supporting_sources": []
+        }
 
-    # 1. LLM Initial Analysis
-    llm_judgment = llm_utils.get_llm_judgment(input_text)
+    # --- Step 3: Multi-source Verification ---
+    llm_judgment = llm_utils.get_llm_judgment(input_text_for_analysis)
+    fact_check_results = factcheck_api.query_fact_check_api(original_claim) # Fact check the original claim
+    search_results = search_api.search_custom_engine(original_claim) # Search for the original claim
 
-    # 2. External Verification - Fact Check API
-    fact_check_results = factcheck_api.query_fact_check_api(input_text)
-
-    # 3. External Verification - Programmable Search Engine
-    search_engine_results = search_api.search_custom_engine(input_text)
-
-    # 4. Similarity Scoring
-    user_embedding = llm_utils.get_embedding(input_text)
-    source_texts = [item['snippet'] for item in search_engine_results]
-    similarity_scores = []
-    if source_texts:
-        source_embeddings = llm_utils.get_embeddings(source_texts)
-        similarity_scores = llm_utils.calculate_similarity(user_embedding, source_embeddings)
-
-    # 5. Final Aggregation and Scoring
+    # --- Step 4: Final Aggregation and Scoring (Smart Logic) ---
     final_verdict = scoring.aggregate_and_score(
         llm_judgment,
         fact_check_results,
-        search_engine_results,
-        similarity_scores
+        search_results,
+        original_claim  # Always verify against the user's original input
     )
 
-    # Format sources for the response
-    sources = fact_check_results + search_engine_results
+    # --- Step 5: Format and Return Response ---
+    final_verdict['supporting_sources'] = search_results
 
-    return Response(
-        verdict=final_verdict['verdict'],
-        confidence_score=final_verdict['confidence_score'],
-        explanation=final_verdict['explanation'],
-        sources=sources
-    )
+    return final_verdict
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
