@@ -13,11 +13,13 @@ app = FastAPI()
 
 # --- CORS Configuration ---
 # This list is the "guest list" for your API.
-# It MUST include the URL of your live Netlify site.
+# The URL here MUST EXACTLY MATCH your Netlify site's URL.
+
+# ===> TRIPLE-CHECK THIS LIST! <===
 origins = [
     "http://localhost:3000",
     "http://localhost:5173",  # Default Vite port for local testing
-    "https://fake-news-detector-gemini.netlify.app/" # IMPORTANT: REPLACE THIS WITH YOUR ACTUAL NETLIFY URL
+    "https://fake-news-detector-gemini.netlify.app/" # <-- REPLACE THIS WITH YOUR REAL URL
 ]
 
 app.add_middleware(
@@ -71,4 +73,18 @@ async def analyze_text(request: Request):
 
     final_verdict['supporting_sources'] = search_results
     return final_verdict
+```
+
+**Step 3: The Critical Re-Deploy Sequence**
+1.  **Replace the placeholder URL** in the `origins` list with your real Netlify URL.
+    * **Check for typos.**
+    * **Make sure it starts with `https`**.
+    * **Make sure there is NO `/` at the end.**
+2.  Save the `main.py` file.
+3.  Commit and push this final change to GitHub.
+    ```bash
+    git add .
+    git commit -m "FIX: Correct production URL in CORS policy"
+    git push
+    
 
