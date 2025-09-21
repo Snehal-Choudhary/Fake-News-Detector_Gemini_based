@@ -17,7 +17,7 @@ app = FastAPI()
 origins = [
     "http://localhost:3000",
     "http://localhost:5173",  # Default Vite port for local testing
-    "https://fake-news-detector-gemini.netlify.app" # IMPORTANT: REPLACE THIS WITH YOUR ACTUAL NETLIFY URL
+    "https://fact-scope.netlify.app" # IMPORTANT: REPLACE THIS WITH YOUR ACTUAL NETLIFY URL
 ]
 
 app.add_middleware(
@@ -71,15 +71,4 @@ async def analyze_text(request: Request):
 
     final_verdict['supporting_sources'] = search_results
     return final_verdict
-```
-
-**Step 3: The Critical Re-Deploy Sequence**
-1.  **Replace the placeholder URL** in the `origins` list with your actual Netlify URL you copied in Step 1.
-2.  Save the `main.py` file.
-3.  In your terminal, commit and push this final change to GitHub.
-    ```bash
-    git add .
-    git commit -m "FIX: Final attempt to update CORS policy for production"
-    git push
-    
 
