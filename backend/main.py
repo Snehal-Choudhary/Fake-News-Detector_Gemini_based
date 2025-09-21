@@ -73,18 +73,3 @@ async def analyze_text(request: Request):
 
     final_verdict['supporting_sources'] = search_results
     return final_verdict
-```
-
-**Step 3: The Critical Re-Deploy Sequence**
-1.  **Replace the placeholder URL** in the `origins` list with your real Netlify URL.
-    * **Check for typos.**
-    * **Make sure it starts with `https`**.
-    * **Make sure there is NO `/` at the end.**
-2.  Save the `main.py` file.
-3.  Commit and push this final change to GitHub.
-    ```bash
-    git add .
-    git commit -m "FIX: Correct production URL in CORS policy"
-    git push
-    
-
