@@ -2,18 +2,12 @@
 import os
 import google.generativeai as genai
 from dotenv import load_dotenv
-from numpy import dot
-from numpy.linalg import norm
+import json
 
 load_dotenv()
-
-# Configure the Gemini API
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 def get_llm_judgment(text: str) -> dict:
-    """
-    Uses Gemini 1.5 Flash to get an initial credibility judgment.
-    """
     model = genai.GenerativeModel('gemini-1.5-flash')
     prompt = f"""
     Analyze the following text for credibility. Based ONLY on the text provided,
@@ -30,9 +24,6 @@ def get_llm_judgment(text: str) -> dict:
     """
     try:
         response = model.generate_content(prompt)
-        # Basic parsing, assuming the model returns a JSON string-like structure
-        # In a production system, you'd want more robust parsing and error handling
-        import json
         clean_response = response.text.strip().replace('```json', '').replace('```', '')
         return json.loads(clean_response)
     except Exception as e:
@@ -42,46 +33,32 @@ def get_llm_judgment(text: str) -> dict:
             "judgment": "uncertain", "confidence": 0.0
         }
 
-def get_embedding(text: str):
-    """
-    Generates embeddings for a single piece of text.
+def verify_claim_with_sources(claim: str, sources: list[str]) -> dict:
+    model = genai.GenerativeModel('gemini-1.5-flash')
+    source_snippets = "\n".join(f"- {s}" for s in sources)
+
+    prompt = f"""
+    User's Claim: "{claim}"
+
+    Search Result Snippets from trusted news sources:
+    {source_snippets}
+
+    Based on the provided search snippets, do they support the user's specific claim?
+    The key is whether the *specific details* of the claim are mentioned in the sources.
+    For example, if the claim is about "free smartphones" but the sources only mention the "PM-Kisan scheme" in general, they do not support the claim.
+    If the claim is "PM Modi Killed Rahul Gandhi" and the sources talk about political criticism, the sources DO NOT support the claim.
+
+    Provide your answer as a JSON object with two keys:
+    1. "supports_claim": boolean (true if the sources support the claim, false if they contradict or do not mention the specific details)
+    2. "reason": A brief explanation for your decision.
     """
     try:
-        result = genai.embed_content(
-            model="models/embedding-001",
-            content=text,
-            task_type="retrieval_document"
-        )
-        return result['embedding']
+        response = model.generate_content(prompt)
+        clean_response = response.text.strip().replace('```json', '').replace('```', '')
+        return json.loads(clean_response)
     except Exception as e:
-        print(f"Error getting embedding: {e}")
-        return []
-
-def get_embeddings(texts: list[str]):
-    """
-    Generates embeddings for a batch of texts.
-    """
-    try:
-        result = genai.embed_content(
-            model="models/embedding-001",
-            content=texts,
-            task_type="retrieval_document"
-        )
-        return result['embedding']
-    except Exception as e:
-        print(f"Error getting batch embeddings: {e}")
-        return [[] for _ in texts]
-
-
-def calculate_similarity(vec1, vec2_list):
-    """
-    Calculates cosine similarity between one vector and a list of other vectors.
-    """
-    scores = []
-    for vec2 in vec2_list:
-        if not vec1 or not vec2:
-            scores.append(0.0)
-            continue
-        cos_sim = dot(vec1, vec2) / (norm(vec1) * norm(vec2))
-        scores.append(cos_sim)
-    return scores
+        print(f"Error in LLM claim verification: {e}")
+        return {
+            "supports_claim": False,
+            "reason": "Could not perform LLM verification due to an error."
+        }
