@@ -16,11 +16,7 @@ app = FastAPI()
 # The URL here MUST EXACTLY MATCH your Netlify site's URL.
 
 # ===> TRIPLE-CHECK THIS LIST! <===
-origins = [
-    "http://localhost:3000",
-    "http://localhost:5173",  # Default Vite port for local testing
-    "https://fake-news-detector-gemini.netlify.app/" # <-- REPLACE THIS WITH YOUR REAL URL
-]
+origins = ["*"]
 
 app.add_middleware(
     CORSMiddleware,
