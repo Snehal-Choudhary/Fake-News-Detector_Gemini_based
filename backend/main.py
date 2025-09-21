@@ -30,7 +30,7 @@ def is_url(string):
     """A simple regex check to see if a string is a URL."""
     regex = re.compile(
         r'^(?:http|ftp)s?://'
-        r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}\.?)|'
+        r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0_9])?\.)+(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}\.?)|'
         r'localhost|'
         r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})'
         r'(?::\d+)?'
@@ -56,16 +56,20 @@ async def analyze_text(request: Request):
             "supporting_sources": []
         }
 
+    # These API calls are fine using the original claim to find related articles.
     llm_judgment = llm_utils.get_llm_judgment(input_text_for_analysis)
     fact_check_results = factcheck_api.query_fact_check_api(original_claim)
     search_results = search_api.search_custom_engine(original_claim)
 
+    # --- THIS IS THE FIX ---
+    # We must pass the SCRAPED TEXT to the final verification, not the original URL.
     final_verdict = scoring.aggregate_and_score(
         llm_judgment,
         fact_check_results,
         search_results,
-        original_claim
+        input_text_for_analysis # Use the scraped content for the final check
     )
+    # --- END OF FIX ---
 
     final_verdict['supporting_sources'] = search_results
     return final_verdict
