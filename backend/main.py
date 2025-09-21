@@ -12,11 +12,12 @@ import re
 app = FastAPI()
 
 # --- CORS Configuration ---
-# This list must include the URL of your live Netlify site.
+# This list is the "guest list" for your API.
+# It MUST include the URL of your live Netlify site.
 origins = [
     "http://localhost:3000",
-    "http://localhost:5173",  # Default Vite port
-    "https://fake-news-detector-gemini.netlify.app/" # IMPORTANT: Replace with your actual Netlify URL
+    "http://localhost:5173",  # Default Vite port for local testing
+    "https://fake-news-detector-gemini.netlify.app" # IMPORTANT: REPLACE THIS WITH YOUR ACTUAL NETLIFY URL
 ]
 
 app.add_middleware(
@@ -40,26 +41,15 @@ def is_url(string):
 
 @app.post("/analyze")
 async def analyze_text(request: Request):
-    """
-    Main endpoint to analyze text. It detects if the text is a URL.
-    """
     data = await request.json()
     input_data = data.get('text', '').strip()
     original_claim = input_data
     
-    # --- Step 1: Scrape content if the input is a URL ---
     if is_url(input_data):
-        scraped_text = scraper.scrape_article_content(input_data)
-        # Use the original URL as the claim if scraping returns very little text
-        if len(scraped_text) < len(original_claim) * 0.8:
-            input_text_for_analysis = original_claim
-        else:
-            input_text_for_analysis = scraped_text
+        input_text_for_analysis = scraper.scrape_article_content(input_data)
     else:
         input_text_for_analysis = original_claim
 
-    # --- Step 2: The Critical Guardrail ---
-    # Check if we have any usable text to analyze.
     if not input_text_for_analysis or "Scraping failed" in input_text_for_analysis:
         return {
             "verdict": "Unverified",
@@ -68,21 +58,28 @@ async def analyze_text(request: Request):
             "supporting_sources": []
         }
 
-    # --- Step 3: Multi-source Verification ---
     llm_judgment = llm_utils.get_llm_judgment(input_text_for_analysis)
-    fact_check_results = factcheck_api.query_fact_check_api(original_claim) # Fact check the original claim
-    search_results = search_api.search_custom_engine(original_claim) # Search for the original claim
+    fact_check_results = factcheck_api.query_fact_check_api(original_claim)
+    search_results = search_api.search_custom_engine(original_claim)
 
-    # --- Step 4: Final Aggregation and Scoring (Smart Logic) ---
     final_verdict = scoring.aggregate_and_score(
         llm_judgment,
         fact_check_results,
         search_results,
-        original_claim  # Always verify against the user's original input
+        original_claim
     )
 
-    # --- Step 5: Format and Return Response ---
     final_verdict['supporting_sources'] = search_results
-
     return final_verdict
+```
+
+**Step 3: The Critical Re-Deploy Sequence**
+1.  **Replace the placeholder URL** in the `origins` list with your actual Netlify URL you copied in Step 1.
+2.  Save the `main.py` file.
+3.  In your terminal, commit and push this final change to GitHub.
+    ```bash
+    git add .
+    git commit -m "FIX: Final attempt to update CORS policy for production"
+    git push
+    
 
