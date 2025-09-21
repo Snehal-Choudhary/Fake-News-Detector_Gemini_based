@@ -16,7 +16,7 @@ app = FastAPI()
 origins = [
     "http://localhost:3000",
     "http://localhost:5173",  # Default Vite port
-    "https://fact-scope.netlify.app" # IMPORTANT: Replace with your actual Netlify URL
+    "https://fake-news-detector-gemini.netlify.app/" # IMPORTANT: Replace with your actual Netlify URL
 ]
 
 app.add_middleware(
