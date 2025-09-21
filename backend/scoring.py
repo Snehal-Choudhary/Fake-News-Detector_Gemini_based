@@ -1,65 +1,93 @@
 # backend/scoring.py
+import llm_utils
 
-def aggregate_and_score(llm_judgment: dict, fact_check_results: list, search_results: list, similarity_scores: list) -> dict:
+def aggregate_and_score(llm_judgment: dict, fact_check_results: list, search_results: list, user_claim: str) -> dict:
     """
-    Aggregates all signals and computes a final verdict and confidence score.
-    This is a simple heuristic-based scoring model. A more advanced system
-    might use a machine learning model.
+    Aggregates signals with cost-saving logic and calculates a clear,
+    intuitive confidence score for the final verdict.
     """
     final_score = 0.0
     explanation_parts = []
 
-    # 1. Weight LLM Judgment
-    llm_confidence = llm_judgment.get('confidence', 0.0)
-    llm_verdict = llm_judgment.get('judgment', 'uncertain')
+    # --- Start of Conditional Logic for Quick Verdicts ---
 
-    if llm_verdict == 'real':
-        final_score += llm_confidence * 0.15  # Reduced weight to 15%
-    elif llm_verdict == 'fake':
-        final_score -= llm_confidence * 0.15
-    explanation_parts.append(f"Initial LLM analysis suggested '{llm_verdict}' with {llm_confidence:.2f} confidence.")
-
-    # 2. Weight Fact Check Results
+    # Step 1: Check for a definitive fact-check result first. This is the most reliable signal.
     if fact_check_results:
         num_fake_ratings = sum(1 for r in fact_check_results if r['rating'] and 'false' in r['rating'].lower())
         if num_fake_ratings > 0:
-            final_score -= 0.60 # Strong negative signal
-            explanation_parts.append(f"Found {num_fake_ratings} fact-checks rating the claim as false.")
+            explanation_parts.append(f"A definitive fact-check from a trusted source rated this claim as false.")
+            return {
+                "verdict": "Likely Fake",
+                "confidence_score": 0.99, # Near-certain confidence (0.0 to 1.0)
+                "explanation": " ".join(explanation_parts)
+            }
+
+    # Step 2: Check if the initial LLM analysis is overwhelmingly confident about an absurd claim.
+    llm_verdict = llm_judgment.get('judgment', 'uncertain')
+    llm_confidence = llm_judgment.get('confidence', 0.0)
+    explanation_parts.append(f"Initial LLM analysis suggested '{llm_verdict}' with {llm_confidence:.2f} confidence.")
+
+    if llm_verdict == 'fake' and llm_confidence > 0.98:
+        explanation_parts.append("The claim is highly implausible on its face and contradicts common knowledge.")
+        return {
+            "verdict": "Likely Fake",
+            "confidence_score": 0.98, # Very high confidence (0.0 to 1.0)
+            "explanation": " ".join(explanation_parts)
+        }
+
+    # --- End of Conditional Logic ---
+    # If the claim is not obviously fake, proceed with the full, detailed analysis.
+
+    # 3. If we're here, we need the expensive verification call against trusted sources.
+    if search_results:
+        source_snippets = [item['snippet'] for item in search_results]
+        verification = llm_utils.verify_claim_with_sources(user_claim, source_snippets)
+        
+        if verification.get('supports_claim'):
+            final_score += 0.70 # Strong positive signal
+            explanation_parts.append("Trusted news sources appear to support the claim.")
         else:
-            final_score += 0.20 # Mild positive signal if claims exist but aren't rated false
-            explanation_parts.append("Found related fact-checks, none of which rated the claim as false.")
+            final_score -= 0.70 # Strongest negative signal for contradiction or omission
+            explanation_parts.append("Trusted news sources do not support the specific details of the claim.")
+        
+        # Ensure the reason from the LLM is always included if available
+        if verification.get('reason'):
+            explanation_parts.append(f"Verification reason: {verification.get('reason')}")
     else:
-        explanation_parts.append("No direct matches found in fact-checking databases.")
+        final_score -= 0.20
+        explanation_parts.append("Could not find any relevant articles from trusted sources.")
 
+    # --- New, Clearer Scoring Logic ---
+    
+    # Normalize the score. This score represents the likelihood of being REAL (0.0 = Fake, 1.0 = Real)
+    real_likelihood_score = (final_score + 1) / 2
+    real_likelihood_score = max(0, min(1, real_likelihood_score))
 
-    # 3. Weight Search Results & Similarity (INCREASED IMPORTANCE)
-    if search_results and similarity_scores:
-        avg_similarity = sum(similarity_scores) / len(similarity_scores)
-        # If the content is very similar to results from trusted sources, it's more likely to be real.
-        # This is now the strongest positive signal.
-        final_score += avg_similarity * 0.50 # Increased weight to 50%
-        explanation_parts.append(f"The claim has an average similarity of {avg_similarity:.2f} to articles from trusted news sources.")
-    else:
-        # If no similar articles are found, it's a negative signal.
-        final_score -= 0.10
-        explanation_parts.append("Could not find highly similar articles from configured trusted sources.")
+    # Determine the final verdict and a clear confidence value (0.0 to 1.0)
+    verdict = ""
+    confidence_value = 0.0
 
-
-    # Normalize score to be between 0 and 1
-    confidence_score = (final_score + 1) / 2
-    confidence_score = max(0, min(1, confidence_score)) # Clamp between 0 and 1
-
-
-    # Determine final verdict (Adjusted Thresholds)
-    if confidence_score > 0.65: # Lowered threshold for 'Real'
+    if real_likelihood_score > 0.7:
         verdict = "Likely Real"
-    elif confidence_score < 0.40: # Adjusted threshold for 'Fake'
+        confidence_value = real_likelihood_score
+    elif real_likelihood_score < 0.4:
         verdict = "Likely Fake"
+        # Confidence in a "Fake" verdict is the inverse of the "Real" likelihood
+        confidence_value = 1 - real_likelihood_score
     else:
         verdict = "Unverified"
+        # Confidence for "Unverified" should be low, reflecting the uncertainty.
+        # This formula calculates how close the score is to the absolute middle (0.5),
+        # and we scale it to a max of 50% to be more intuitive for the user.
+        unverified_confidence = 1 - abs(real_likelihood_score - 0.5) * 2
+        confidence_value = unverified_confidence * 0.5
+
+    # Final safeguard to ensure confidence is always within the valid 0.0-1.0 range.
+    confidence_value = max(0.0, min(1.0, confidence_value))
 
     return {
         "verdict": verdict,
-        "confidence_score": confidence_score,
-        "explanation": " ".join(explanation_parts)
+        "confidence_score": confidence_value,
+        "explanation": " ".join(explanation_parts) if explanation_parts else "Analysis could not determine a reason."
     }
+
